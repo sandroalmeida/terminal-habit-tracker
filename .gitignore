@@ -1,0 +1,14 @@
+# Binaries
+habit-tracker
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Config
+config.json
+
+# Go
+go.sum
