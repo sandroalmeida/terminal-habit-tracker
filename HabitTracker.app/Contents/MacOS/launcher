@@ -1,0 +1,5 @@
+#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+RESOURCE_DIR="$(dirname "$DIR")/Resources"
+# Open Terminal and run the app
+open -a Terminal "$RESOURCE_DIR/habit-tracker"
