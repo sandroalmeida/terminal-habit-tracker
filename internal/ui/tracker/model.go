@@ -151,7 +151,7 @@ func (m Model) View() string {
 	}
 
 	// Helper to format date header
-	header := lipgloss.NewStyle().Width(25).Render(" ") // Padding for Habit Name
+	header := lipgloss.NewStyle().Width(26).Render(" ") // Padding for Habit Name
 	for i := 0; i < 7; i++ {
 		date := m.StartDate.AddDate(0, 0, i)
 		dayStr := date.Format("Mon 02")
@@ -176,7 +176,7 @@ func (m Model) View() string {
 		if len(name) > 25 {
 			name = name[:25]
 		}
-		nameStyle := lipgloss.NewStyle().Width(25).Align(lipgloss.Right).PaddingRight(1)
+		nameStyle := lipgloss.NewStyle().Width(26).Align(lipgloss.Right).PaddingRight(1)
 		if m.CursorY == i {
 			nameStyle = nameStyle.Foreground(lipgloss.Color("205")).Bold(true)
 		}
@@ -226,7 +226,7 @@ func (m Model) View() string {
 	}
 
 	// Daily Emojis Footer
-	emojiRow := lipgloss.NewStyle().Width(25).Align(lipgloss.Right).PaddingRight(1).Render(" ")
+	emojiRow := lipgloss.NewStyle().Width(26).Align(lipgloss.Right).PaddingRight(1).Render(" ")
 	for d := 0; d < 7; d++ {
 		date := m.StartDate.AddDate(0, 0, d)
 		dateStr := date.Format("2006-01-02")

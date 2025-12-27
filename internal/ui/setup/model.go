@@ -129,6 +129,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if !m.InputtingGoal {
 					// Step 1: Name Input
 					if val != "" {
+						if len(val) > 25 {
+							m.Err = fmt.Errorf("habit name cannot exceed 25 characters")
+							return m, nil
+						}
 						m.TempName = val
 						m.InputtingGoal = true
 						m.TextInput.Reset()
