@@ -166,17 +166,21 @@ func (m Model) View() string {
 	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Total")
 	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Streak")
 	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Goal")
-	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Prog")
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Progress")
 
 	s += header + "\n"
 
 	for i, habit := range m.Habits {
 		// Habit Name
+		name := habit.Name
+		if len(name) > 25 {
+			name = name[:25]
+		}
 		nameStyle := lipgloss.NewStyle().Width(20).Align(lipgloss.Right).PaddingRight(1)
 		if m.CursorY == i {
 			nameStyle = nameStyle.Foreground(lipgloss.Color("205")).Bold(true)
 		}
-		row := nameStyle.Render(habit.Name)
+		row := nameStyle.Render(name)
 
 		// Days
 		for d := 0; d < 7; d++ {
@@ -205,10 +209,7 @@ func (m Model) View() string {
 		stats := m.Stats[habit.ID]
 		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.Total))
 
-		streakStr := fmt.Sprintf("%d 🔥", stats.CurrentStreak)
-		if stats.CurrentStreak == 0 {
-			streakStr = "0"
-		}
+		streakStr := fmt.Sprintf("%d", stats.CurrentStreak)
 		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(streakStr)
 
 		goalStr := "∞"
@@ -219,9 +220,6 @@ func (m Model) View() string {
 
 		// Progress / Emoji
 		progDisplay := fmt.Sprintf("%d%%", stats.Progress)
-		if stats.Emoji != "" {
-			progDisplay = stats.Emoji
-		}
 		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(progDisplay)
 
 		s += row + "\n"

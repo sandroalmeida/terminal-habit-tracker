@@ -159,3 +159,23 @@ func (r *LogRepository) hasLog(habitID int, date time.Time) bool {
 	err := r.DB.QueryRow(query, habitID, date.Format("2006-01-02")).Scan(&id)
 	return err == nil
 }
+
+// GetAllLogs returns all log dates for a given habit
+func (r *LogRepository) GetAllLogs(habitID int) ([]time.Time, error) {
+	query := `SELECT log_date FROM habit_logs WHERE habit_id = ? ORDER BY log_date ASC`
+	rows, err := r.DB.Query(query, habitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []time.Time
+	for rows.Next() {
+		var date time.Time
+		if err := rows.Scan(&date); err != nil {
+			return nil, err
+		}
+		logs = append(logs, date)
+	}
+	return logs, nil
+}
