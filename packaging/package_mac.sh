@@ -14,16 +14,25 @@ rm -rf "${APP_BUNDLE}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
-echo "Copying binary..."
+echo "Copying binary and config..."
 cp "${BINARY_NAME}" "${APP_BUNDLE}/Contents/Resources/"
+cp config.json "${APP_BUNDLE}/Contents/Resources/"
+
+echo "Creating startup wrapper..."
+cat <<EOF > "${APP_BUNDLE}/Contents/Resources/start.sh"
+#!/bin/bash
+cd "\$(dirname "\$0")"
+./${BINARY_NAME}
+EOF
+chmod +x "${APP_BUNDLE}/Contents/Resources/start.sh"
 
 echo "Creating launcher script..."
 cat <<EOF > "${APP_BUNDLE}/Contents/MacOS/launcher"
 #!/bin/bash
 DIR="\$(cd "\$(dirname "\$0")" && pwd)"
 RESOURCE_DIR="\$(dirname "\$DIR")/Resources"
-# Open Terminal and run the app
-open -a Terminal "\$RESOURCE_DIR/${BINARY_NAME}"
+# Open Terminal and run the wrapper script
+open -a Terminal "\$RESOURCE_DIR/start.sh"
 EOF
 chmod +x "${APP_BUNDLE}/Contents/MacOS/launcher"
 
