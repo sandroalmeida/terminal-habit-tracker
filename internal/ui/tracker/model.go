@@ -131,10 +131,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				habitID := m.Habits[m.CursorY].ID
 				date := m.StartDate.AddDate(0, 0, m.CursorX)
 
-				if err := m.LogRepo.ToggleLog(habitID, date); err != nil {
-					m.Err = err
+				// Prevent checking future days
+				now := time.Now()
+				today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+				checkDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+
+				if checkDate.After(today) {
+					m.Err = fmt.Errorf("cannot check habits for future days")
 				} else {
-					return m, tea.Batch(m.LoadLogs, m.LoadStats) // Helper to reload both probably better, but this works
+					if err := m.LogRepo.ToggleLog(habitID, date); err != nil {
+						m.Err = err
+					} else {
+						return m, tea.Batch(m.LoadLogs, m.LoadStats)
+					}
 				}
 			}
 		}
@@ -152,10 +161,22 @@ func (m Model) View() string {
 
 	// Helper to format date header
 	header := lipgloss.NewStyle().Width(26).Render(" ") // Padding for Habit Name
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
 	for i := 0; i < 7; i++ {
 		date := m.StartDate.AddDate(0, 0, i)
+		checkDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 		dayStr := date.Format("Mon 02")
 		style := lipgloss.NewStyle().Width(8).Align(lipgloss.Center)
+
+		// Highlight current day
+		if checkDate.Equal(today) {
+			style = style.Foreground(lipgloss.Color("220")).Bold(true) // Gold/Yellow for today
+		}
+
+		// Cursor highlight overrides or combines?
+		// Let's keep cursor valid indication separate or combined
 		if i == m.CursorX {
 			style = style.Bold(true).Foreground(lipgloss.Color("205")).Underline(true)
 		}
