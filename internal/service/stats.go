@@ -60,3 +60,22 @@ func (s *StatsService) GetStats(habitID int, goalTarget int) (HabitStats, error)
 		Emoji:         emoji,
 	}, nil
 }
+
+func (s *StatsService) GetDailyEmoji(totalItems, completedItems int) string {
+	if totalItems == 0 {
+		return ""
+	}
+
+	percentage := (completedItems * 100) / totalItems
+
+	switch {
+	case percentage >= 90:
+		return "🏆"
+	case percentage >= 70:
+		return "🥇"
+	case percentage >= 50:
+		return "🙂"
+	default:
+		return "  " // Empty space to keep alignment
+	}
+}

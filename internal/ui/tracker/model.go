@@ -227,6 +227,28 @@ func (m Model) View() string {
 		s += row + "\n"
 	}
 
+	// Daily Emojis Footer
+	emojiRow := lipgloss.NewStyle().Width(20).Align(lipgloss.Right).PaddingRight(1).Render(" ")
+	for d := 0; d < 7; d++ {
+		date := m.StartDate.AddDate(0, 0, d)
+		dateStr := date.Format("2006-01-02")
+
+		totalActive := 0
+		completed := 0
+
+		for _, habit := range m.Habits {
+			// Skip archived habits if necessary, but list only returns active ones anyway
+			totalActive++
+			if m.Logs[habit.ID] != nil && m.Logs[habit.ID][dateStr] {
+				completed++
+			}
+		}
+
+		emoji := m.StatsService.GetDailyEmoji(totalActive, completed)
+		emojiRow += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(emoji)
+	}
+	s += "\n" + emojiRow + "\n"
+
 	s += "\n" + ui.HelpStyle.Render("(Arrow Keys: Navigate, Space: Toggle, Tab: Switch View)")
 	return s
 }
