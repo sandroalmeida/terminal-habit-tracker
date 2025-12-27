@@ -371,3 +371,99 @@ func (s *StatsService) CalculateMonthlyStats(habitLogs map[string]bool, year int
 		Progress:      progress,
 	}
 }
+
+func (s *StatsService) CalculateAnnualStats(habitLogs map[string]bool, year int, weeklyGoal int) HabitStats {
+	total := 0
+	longestStreak := 0
+	currentStreak := 0
+
+	// Determine start and end of year
+	startOfYear := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
+	nextYear := startOfYear.AddDate(1, 0, 0)
+	endOfYear := nextYear.AddDate(0, 0, -1)
+	daysInYear := endOfYear.YearDay()
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+
+	// Effective end for calculations
+	calcEnd := endOfYear
+	if calcEnd.After(today) {
+		calcEnd = today
+	}
+
+	// 1. Total & Longest
+	activeRun := 0
+	for d := 1; d <= daysInYear; d++ {
+		date := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local).AddDate(0, 0, d-1)
+		dStr := date.Format("2006-01-02")
+
+		if habitLogs[dStr] {
+			total++
+			activeRun++
+		} else {
+			if activeRun > longestStreak {
+				longestStreak = activeRun
+			}
+			activeRun = 0
+		}
+	}
+	if activeRun > longestStreak {
+		longestStreak = activeRun
+	}
+
+	// 2. Current Streak (Yearly Context)
+	if startOfYear.After(today) {
+		currentStreak = 0
+	} else {
+		checkDate := calcEnd
+
+		streakStartFn := func(start time.Time) time.Time {
+			if habitLogs[start.Format("2006-01-02")] {
+				return start
+			}
+			if start.Equal(today) {
+				prev := start.AddDate(0, 0, -1)
+				if prev.Year() == year && habitLogs[prev.Format("2006-01-02")] {
+					return prev
+				}
+			}
+			return time.Time{}
+		}
+
+		startCountingDate := streakStartFn(checkDate)
+		if !startCountingDate.IsZero() {
+			curr := startCountingDate
+			for {
+				if curr.Before(startOfYear) {
+					break
+				}
+				if habitLogs[curr.Format("2006-01-02")] {
+					currentStreak++
+				} else {
+					break
+				}
+				curr = curr.AddDate(0, 0, -1)
+			}
+		}
+	}
+
+	// 3. Goal & Progress
+	// Goal = 52 * WeeklyGoal
+	annualGoal := 0
+	if weeklyGoal > 0 {
+		annualGoal = 52 * weeklyGoal
+	}
+
+	progress := 0
+	if annualGoal > 0 {
+		progress = (total * 100) / annualGoal
+	}
+
+	return HabitStats{
+		Total:         total,
+		CurrentStreak: currentStreak,
+		LongestStreak: longestStreak,
+		Progress:      progress,
+	}
+}
