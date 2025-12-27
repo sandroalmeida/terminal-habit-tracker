@@ -5,6 +5,7 @@ import (
 	"habit-tracker/internal/models"
 	"habit-tracker/internal/repository"
 	"habit-tracker/internal/ui"
+	"strconv"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +18,8 @@ type Model struct {
 	Cursor              int
 	Adding              bool
 	Editing             bool
+	InputtingGoal       bool
+	TempName            string
 	ConfirmingArchive   bool
 	ConfirmingUnarchive bool
 	ConfirmingEdit      bool
@@ -75,19 +78,28 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 							m.Err = err
 						}
 					} else if m.ConfirmingEdit {
-						// Update habit name
-						str := m.TextInput.Value()
-						if str == "" {
-							// Don't restart, just keep it? Or use old name?
-							// Original logic: if name != ""
-							// If user cleared it, arguably we shouldn't save empty name.
+						// Update habit name and goal using stored TempName and TextInput (Goal)
+						// TempName was set when transitioning to Goal input
+						goalVal, err := strconv.Atoi(m.TextInput.Value())
+						// Although we validate before confirmation, re-check to be safe, or just trust the previous step?
+						// Flow: Name -> Enter (store TempName) -> Goal -> Enter (validate) -> Confirm -> Y (Update)
+
+						// If we are here, it means we are in ConfirmingEdit state.
+						// BUT wait, my previous logic in "enter" handler handled the validation.
+						// The ConfirmingEdit state is just a "Are you sure?".
+						// So at this point, m.TextInput has the Goal value.
+						if err != nil || goalVal < 1 || goalVal > 7 {
+							m.Err = fmt.Errorf("invalid goal value: %v", err)
 						} else {
-							habit.Name = str
+							habit.Name = m.TempName
+							habit.GoalTarget = goalVal
 							if err := m.Repo.Update(habit); err != nil {
 								m.Err = err
 							}
 						}
+
 						m.Editing = false
+						m.InputtingGoal = false
 						m.TextInput.Reset()
 					}
 				}
@@ -99,29 +111,56 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.ConfirmingArchive = false
 				m.ConfirmingUnarchive = false
 				m.ConfirmingEdit = false // Cancel confirmation
-				// If we were editing, we remain in editing mode (implied by not setting Editing=false)
-				// But we need to make sure we don't fall through to other handlers if we want to consume this key.
+				// Stay in editing mode?
+				// If we cancel the "Are you sure to edit?" prompt, typically we should just go back to the editing flow
+				// OR just cancel the whole edit. Let's cancel the whole edit for simplicity.
+				m.Editing = false
+				m.InputtingGoal = false
+				m.TextInput.Reset()
 				return m, nil
 			}
-			// Ignore other keys while confirming? Or allow pass through?
-			// Ideally ignore others to force Y/N choice.
 			return m, nil
 		}
 
 		if m.Adding || m.Editing {
 			switch msg.String() {
 			case "enter":
-				name := m.TextInput.Value()
-				if name != "" {
+				val := m.TextInput.Value()
+				if !m.InputtingGoal {
+					// Step 1: Name Input
+					if val != "" {
+						m.TempName = val
+						m.InputtingGoal = true
+						m.TextInput.Reset()
+						m.TextInput.Placeholder = "Weekly Goal (1-7)"
+
+						// Pre-fill existing goal if editing
+						if m.Editing && m.Cursor >= 0 && m.Cursor < len(m.Habits) {
+							m.TextInput.SetValue(strconv.Itoa(m.Habits[m.Cursor].GoalTarget))
+						} else {
+							m.TextInput.SetValue("7") // Default
+						}
+						return m, nil
+					}
+				} else {
+					// Step 2: Goal Input
+					goalVal, err := strconv.Atoi(val)
+					if err != nil || goalVal < 1 || goalVal > 7 {
+						m.Err = fmt.Errorf("goal must be a number between 1 and 7")
+						return m, nil // Don't proceed
+					}
+					m.Err = nil // Clear previous error
+
 					if m.Adding {
 						habit := &models.Habit{
-							Name:       name,
-							GoalTarget: 100, // Default goal
+							Name:       m.TempName,
+							GoalTarget: goalVal,
 						}
 						if err := m.Repo.Create(habit); err != nil {
 							m.Err = err
 						} else {
 							m.Adding = false
+							m.InputtingGoal = false
 							m.TextInput.Reset()
 							return m, m.LoadHabits
 						}
@@ -133,8 +172,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			case "esc":
 				m.Adding = false
 				m.Editing = false
+				m.InputtingGoal = false
 				m.ConfirmingEdit = false
 				m.TextInput.Reset()
+				m.Err = nil
 			}
 			m.TextInput, cmd = m.TextInput.Update(msg)
 			return m, cmd
@@ -151,6 +192,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "n":
 			m.Adding = true
+			m.InputtingGoal = false
 			m.TextInput.Placeholder = "New Habit Name"
 			m.TextInput.SetValue("")
 			m.TextInput.Focus()
@@ -158,6 +200,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "e":
 			if m.Cursor >= 0 && m.Cursor < len(m.Habits) {
 				m.Editing = true
+				m.InputtingGoal = false
 				m.TextInput.Placeholder = "Edit Habit Name"
 				m.TextInput.SetValue(m.Habits[m.Cursor].Name)
 				m.TextInput.Focus()
@@ -193,7 +236,7 @@ func (m Model) View() string {
 	} else if m.ConfirmingUnarchive {
 		s += lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true).Render("Are you sure you want to un-archive this habit? (y/n)") + "\n\n"
 	} else if m.ConfirmingEdit {
-		s += lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true).Render("Are you sure you want to rename this habit? Previous records will be affected. (y/n)") + "\n\n"
+		s += lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true).Render("Are you sure you want to save changes? Previous records will be affected. (y/n)") + "\n\n"
 	}
 
 	s += ui.ListHeaderStyle.Render("Your Habits") + "\n"
@@ -212,7 +255,10 @@ func (m Model) View() string {
 			style = style.Faint(true)
 		}
 
-		s += style.Render(fmt.Sprintf("%s %s", cursor, name)) + "\n"
+		// Also display goal for visibility
+		goal := fmt.Sprintf("(Goal: %d/wk)", habit.GoalTarget)
+
+		s += style.Render(fmt.Sprintf("%s %s %s", cursor, name, goal)) + "\n"
 	}
 
 	if m.Adding || m.Editing {
@@ -220,9 +266,15 @@ func (m Model) View() string {
 		if m.Editing {
 			title = "Edit Habit"
 		}
-		s += "\n" + lipgloss.NewStyle().Bold(true).Render(title+":")
+
+		label := "Name"
+		if m.InputtingGoal {
+			label = "Weekly Goal (1-7)"
+		}
+
+		s += "\n" + lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%s - %s:", title, label))
 		s += "\n" + m.TextInput.View() + "\n"
-		s += ui.HelpStyle.Render("(Enter to save, Esc to cancel)")
+		s += ui.HelpStyle.Render("(Enter to next/save, Esc to cancel)")
 	} else {
 		s += "\n" + ui.HelpStyle.Render("(n: new, e: edit, d: archive, u: un-archive, j/k: navigate)")
 	}
