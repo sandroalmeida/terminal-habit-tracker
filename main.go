@@ -30,7 +30,7 @@ type model struct {
 
 func initialModel(habitRepo *repository.HabitRepository, logRepo *repository.LogRepository, statsService *service.StatsService) model {
 	return model{
-		state:        viewSetup,
+		state:        viewTracker,
 		trackerModel: tracker.NewModel(habitRepo, logRepo, statsService),
 		setupModel:   setup.NewModel(habitRepo),
 	}
