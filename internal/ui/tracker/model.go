@@ -49,7 +49,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) LoadHabits() tea.Msg {
-	habits, err := m.HabitRepo.List()
+	habits, err := m.HabitRepo.List(false)
 	if err != nil {
 		return err
 	}
