@@ -52,8 +52,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			if m.state == viewTracker {
 				m.state = viewSetup
-				// Refresh habits when switching to setup? Or when switching back?
-				// Actually, when switching BACK to tracker, we should reload habits in case changes happened.
+				cmds = append(cmds, m.setupModel.LoadHabits)
 			} else {
 				m.state = viewTracker
 				// Reload habits and logs when returning to tracker
