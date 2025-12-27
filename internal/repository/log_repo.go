@@ -89,3 +89,73 @@ func (r *LogRepository) GetLogsBetween(startDate, endDate time.Time) (map[int]ma
 
 	return logs, nil
 }
+
+// GetTotalCount returns the total number of logs for a habit
+func (r *LogRepository) GetTotalCount(habitID int) (int, error) {
+	query := `SELECT COUNT(*) FROM habit_logs WHERE habit_id = ?`
+	var count int
+	err := r.DB.QueryRow(query, habitID).Scan(&count)
+	return count, err
+}
+
+// GetCurrentStreak calculates the current streak of consecutive days
+func (r *LogRepository) GetCurrentStreak(habitID int) (int, error) {
+	// Simple approach: Iterate backwards from today/yesterday
+	// A more optimized SQL approach exists (recursion/window functions),
+	// but iterative check is fine for personal scale.
+	streak := 0
+	date := time.Now()
+
+	// Check today first
+	if r.hasLog(habitID, date) {
+		streak++
+	} else {
+		// If not done today, checking yesterday implies the streak is still "active"
+		// if we consider "current streak" to include yesterday.
+		// However, typically streak is 0 if not done today OR yesterday.
+		// Let's cycle back.
+	}
+
+	// Actually, easier logic:
+	// Start from today. If today is done, streak++. Check yesterday.
+	// If today is NOT done, streak is technically 0 for "today",
+	// but often apps show the streak up to yesterday if today isn't over.
+	// Let's check yesterday.
+
+	// Refined logic:
+	// If today is logged, count it and go back.
+	// If today is NOT logged, check yesterday. If yesterday is logged, count it and go back.
+	// If neither, streak is 0.
+
+	todayLogged := r.hasLog(habitID, date)
+	if todayLogged {
+		streak++
+		date = date.AddDate(0, 0, -1)
+	} else {
+		// Check yesterday
+		date = date.AddDate(0, 0, -1)
+		if !r.hasLog(habitID, date) {
+			return 0, nil
+		}
+		streak++
+		date = date.AddDate(0, 0, -1) // Move to day before yesterday
+	}
+
+	for {
+		if r.hasLog(habitID, date) {
+			streak++
+			date = date.AddDate(0, 0, -1)
+		} else {
+			break
+		}
+	}
+
+	return streak, nil
+}
+
+func (r *LogRepository) hasLog(habitID int, date time.Time) bool {
+	query := `SELECT id FROM habit_logs WHERE habit_id = ? AND log_date = ?`
+	var id int
+	err := r.DB.QueryRow(query, habitID, date.Format("2006-01-02")).Scan(&id)
+	return err == nil
+}

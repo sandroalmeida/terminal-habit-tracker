@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"habit-tracker/internal/models"
 	"habit-tracker/internal/repository"
+	"habit-tracker/internal/service"
 	"habit-tracker/internal/ui"
 	"time"
 
@@ -12,17 +13,19 @@ import (
 )
 
 type Model struct {
-	HabitRepo *repository.HabitRepository
-	LogRepo   *repository.LogRepository
-	Habits    []models.Habit
-	Logs      map[int]map[string]bool
-	CursorX   int // Day index (0-6)
-	CursorY   int // Habit index
-	StartDate time.Time
-	Err       error
+	HabitRepo    *repository.HabitRepository
+	LogRepo      *repository.LogRepository
+	StatsService *service.StatsService
+	Habits       []models.Habit
+	Logs         map[int]map[string]bool
+	Stats        map[int]service.HabitStats
+	CursorX      int // Day index (0-6)
+	CursorY      int // Habit index
+	StartDate    time.Time
+	Err          error
 }
 
-func NewModel(habitRepo *repository.HabitRepository, logRepo *repository.LogRepository) Model {
+func NewModel(habitRepo *repository.HabitRepository, logRepo *repository.LogRepository, statsService *service.StatsService) Model {
 	// Find start of current week (Monday)
 	now := time.Now()
 	offset := int(now.Weekday()) - 1
@@ -32,10 +35,12 @@ func NewModel(habitRepo *repository.HabitRepository, logRepo *repository.LogRepo
 	startDate := now.AddDate(0, 0, -offset)
 
 	return Model{
-		HabitRepo: habitRepo,
-		LogRepo:   logRepo,
-		StartDate: startDate,
-		Logs:      make(map[int]map[string]bool),
+		HabitRepo:    habitRepo,
+		LogRepo:      logRepo,
+		StatsService: statsService,
+		StartDate:    startDate,
+		Logs:         make(map[int]map[string]bool),
+		Stats:        make(map[int]service.HabitStats),
 	}
 }
 
@@ -60,6 +65,17 @@ func (m Model) LoadLogs() tea.Msg {
 	return logs
 }
 
+func (m Model) LoadStats() tea.Msg {
+	stats := make(map[int]service.HabitStats)
+	for _, habit := range m.Habits {
+		s, err := m.StatsService.GetStats(habit.ID, habit.GoalTarget)
+		if err == nil {
+			stats[habit.ID] = s
+		}
+	}
+	return stats
+}
+
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case []models.Habit:
@@ -68,9 +84,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if m.CursorY >= len(m.Habits) && len(m.Habits) > 0 {
 			m.CursorY = len(m.Habits) - 1
 		}
+		// Reload stats when habits load
+		return m, m.LoadStats
 
 	case map[int]map[string]bool:
 		m.Logs = msg
+		// Reload stats when logs change
+		return m, m.LoadStats
+
+	case map[int]service.HabitStats:
+		m.Stats = msg
 
 	case error:
 		m.Err = msg
@@ -111,7 +134,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if err := m.LogRepo.ToggleLog(habitID, date); err != nil {
 					m.Err = err
 				} else {
-					return m, m.LoadLogs
+					return m, tea.Batch(m.LoadLogs, m.LoadStats) // Helper to reload both probably better, but this works
 				}
 			}
 		}
@@ -128,7 +151,7 @@ func (m Model) View() string {
 	}
 
 	// Helper to format date header
-	header := "                     " // Padding for Habit Name
+	header := lipgloss.NewStyle().Width(20).Render(" ") // Padding for Habit Name
 	for i := 0; i < 7; i++ {
 		date := m.StartDate.AddDate(0, 0, i)
 		dayStr := date.Format("Mon 02")
@@ -138,6 +161,13 @@ func (m Model) View() string {
 		}
 		header += style.Render(dayStr)
 	}
+
+	// Stats Headers
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Total")
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Streak")
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Goal")
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Prog")
+
 	s += header + "\n"
 
 	for i, habit := range m.Habits {
@@ -158,16 +188,9 @@ func (m Model) View() string {
 				isChecked = true
 			}
 
-			box := "NO"
-			if isChecked {
-				box = "YES"
-			}
-
-			// Emoji replacement
+			box := "⬜"
 			if isChecked {
 				box = "✅"
-			} else {
-				box = "⬜"
 			}
 
 			cellStyle := lipgloss.NewStyle().Width(8).Align(lipgloss.Center)
@@ -177,6 +200,29 @@ func (m Model) View() string {
 
 			row += cellStyle.Render(box)
 		}
+
+		// Stats
+		stats := m.Stats[habit.ID]
+		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.Total))
+
+		streakStr := fmt.Sprintf("%d 🔥", stats.CurrentStreak)
+		if stats.CurrentStreak == 0 {
+			streakStr = "0"
+		}
+		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(streakStr)
+
+		goalStr := "∞"
+		if habit.GoalTarget > 0 {
+			goalStr = fmt.Sprintf("%d", habit.GoalTarget)
+		}
+		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(goalStr)
+
+		// Progress / Emoji
+		progDisplay := fmt.Sprintf("%d%%", stats.Progress)
+		if stats.Emoji != "" {
+			progDisplay = stats.Emoji
+		}
+		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(progDisplay)
 
 		s += row + "\n"
 	}

@@ -5,6 +5,7 @@ import (
 	"habit-tracker/internal/config"
 	"habit-tracker/internal/db"
 	"habit-tracker/internal/repository"
+	"habit-tracker/internal/service"
 	"habit-tracker/internal/ui/setup"
 	"habit-tracker/internal/ui/tracker"
 	"log"
@@ -27,10 +28,10 @@ type model struct {
 	setupModel   setup.Model
 }
 
-func initialModel(habitRepo *repository.HabitRepository, logRepo *repository.LogRepository) model {
+func initialModel(habitRepo *repository.HabitRepository, logRepo *repository.LogRepository, statsService *service.StatsService) model {
 	return model{
 		state:        viewTracker,
-		trackerModel: tracker.NewModel(habitRepo, logRepo),
+		trackerModel: tracker.NewModel(habitRepo, logRepo, statsService),
 		setupModel:   setup.NewModel(habitRepo),
 	}
 }
@@ -117,8 +118,10 @@ func main() {
 
 	habitRepo := repository.NewHabitRepository(database)
 	logRepo := repository.NewLogRepository(database)
+	statsService := service.NewStatsService(logRepo)
 
-	p := tea.NewProgram(initialModel(habitRepo, logRepo), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(habitRepo, logRepo, statsService), tea.WithAltScreen())
+
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
