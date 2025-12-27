@@ -97,7 +97,7 @@ func (m model) View() string {
 	// Simple tab bar
 	trackerTab := "Tracker"
 	monthlyTab := "Monthly"
-	annualTab := "Annual"
+	annualTab := "Annually"
 	setupTab := "Setup"
 
 	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Border(lipgloss.NormalBorder(), false, false, true, false).BorderForeground(lipgloss.Color("205"))

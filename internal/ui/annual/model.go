@@ -102,7 +102,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	s := ui.TitleStyle.Render("Annual Tracker") + "\n\n"
+	s := ui.TitleStyle.Render("Annually Tracker") + "\n\n"
 
 	if m.Err != nil {
 		s += lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(fmt.Sprintf("Error: %v", m.Err)) + "\n\n"
