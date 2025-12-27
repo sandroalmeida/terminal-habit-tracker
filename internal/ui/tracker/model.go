@@ -68,10 +68,8 @@ func (m Model) LoadLogs() tea.Msg {
 func (m Model) LoadStats() tea.Msg {
 	stats := make(map[int]service.HabitStats)
 	for _, habit := range m.Habits {
-		s, err := m.StatsService.GetStats(habit.ID, habit.GoalTarget)
-		if err == nil {
-			stats[habit.ID] = s
-		}
+		s := m.StatsService.CalculateWeeklyStats(m.Logs[habit.ID], m.StartDate, habit.GoalTarget)
+		stats[habit.ID] = s
 	}
 	return stats
 }

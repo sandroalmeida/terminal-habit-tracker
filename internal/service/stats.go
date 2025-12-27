@@ -171,3 +171,94 @@ func (s *StatsService) GetDailyEmoji(totalItems, completedItems int) string {
 		return "  " // Empty space to keep alignment
 	}
 }
+
+func (s *StatsService) CalculateWeeklyStats(habitLogs map[string]bool, startDate time.Time, goal int) HabitStats {
+	total := 0
+	longestStreak := 0
+	currentStreak := 0
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	// Determine "End of Calculation" (Latest day to consider)
+	weekEnd := startDate.AddDate(0, 0, 6)
+	calcEnd := weekEnd
+	if calcEnd.After(today) {
+		calcEnd = today
+	}
+
+	// 1. Scan for Total and Longest Logged (strictly within the week)
+	activeRun := 0
+	for i := 0; i < 7; i++ {
+		d := startDate.AddDate(0, 0, i)
+		dStr := d.Format("2006-01-02")
+
+		// Only count if within valid range (though map lookup handles it, logical check helps)
+		if habitLogs[dStr] {
+			total++
+			activeRun++
+		} else {
+			if activeRun > longestStreak {
+				longestStreak = activeRun
+			}
+			activeRun = 0
+		}
+	}
+	// Check verify last run
+	if activeRun > longestStreak {
+		longestStreak = activeRun
+	}
+
+	// 2. Calculate Current Streak (Standard habit logic: "Streak alive?")
+	// Scoped to Week: Count backwards from min(Today, Sunday).
+	// If calcEnd is checked -> streak++. Continue back.
+	// If calcEnd is NOT checked:
+	//    If calcEnd == Today: Check Yesterday. If CHECKED, Streak = 1 (start there). Continue back.
+	//    Else: Streak = 0.
+
+	// Ensure we don't look before startDate
+	if !calcEnd.Before(startDate) {
+		checkDate := calcEnd
+
+		// Grace period for Today
+		if calcEnd.Equal(today) && !habitLogs[calcEnd.Format("2006-01-02")] {
+			// Today is empty. Check yesterday.
+			yesterday := calcEnd.AddDate(0, 0, -1)
+			if !yesterday.Before(startDate) && habitLogs[yesterday.Format("2006-01-02")] {
+				checkDate = yesterday
+			} else {
+				// Streak broken or never started
+				goto Finish
+			}
+		} else if !habitLogs[checkDate.Format("2006-01-02")] {
+			// Not today, and empty at end of period. Streak 0.
+			goto Finish
+		}
+
+		// Count backwards loop
+		for {
+			if checkDate.Before(startDate) {
+				break
+			}
+			if habitLogs[checkDate.Format("2006-01-02")] {
+				currentStreak++
+			} else {
+				break
+			}
+			checkDate = checkDate.AddDate(0, 0, -1)
+		}
+	}
+
+Finish:
+	progress := 0
+	if goal > 0 {
+		progress = (total * 100) / goal
+	}
+
+	return HabitStats{
+		Total:         total,
+		CurrentStreak: currentStreak,
+		LongestStreak: longestStreak,
+		Progress:      progress,
+	}
+}
