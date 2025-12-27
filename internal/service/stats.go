@@ -211,11 +211,7 @@ func (s *StatsService) CalculateWeeklyStats(habitLogs map[string]bool, startDate
 
 	// 2. Calculate Current Streak (Standard habit logic: "Streak alive?")
 	// Scoped to Week: Count backwards from min(Today, Sunday).
-	// If calcEnd is checked -> streak++. Continue back.
-	// If calcEnd is NOT checked:
-	//    If calcEnd == Today: Check Yesterday. If CHECKED, Streak = 1 (start there). Continue back.
-	//    Else: Streak = 0.
-
+	// ... (same logic as before)
 	// Ensure we don't look before startDate
 	if !calcEnd.Before(startDate) {
 		checkDate := calcEnd
@@ -253,6 +249,119 @@ Finish:
 	progress := 0
 	if goal > 0 {
 		progress = (total * 100) / goal
+	}
+
+	return HabitStats{
+		Total:         total,
+		CurrentStreak: currentStreak,
+		LongestStreak: longestStreak,
+		Progress:      progress,
+	}
+}
+
+func (s *StatsService) CalculateMonthlyStats(habitLogs map[string]bool, year int, month time.Month, weeklyGoal int) HabitStats {
+	total := 0
+	longestStreak := 0
+	currentStreak := 0
+
+	// Determine start and end of month
+	startOfMonth := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+	nextMonth := startOfMonth.AddDate(0, 1, 0)
+	endOfMonth := nextMonth.AddDate(0, 0, -1)
+	daysInMonth := endOfMonth.Day()
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+
+	// Effective end for calculations (don't count future days for streak purposes if current month)
+	calcEnd := endOfMonth
+	if calcEnd.After(today) {
+		calcEnd = today
+	}
+
+	// 1. Total & Longest
+	activeRun := 0
+	for d := 1; d <= daysInMonth; d++ {
+		date := time.Date(year, month, d, 0, 0, 0, 0, time.Local)
+		dStr := date.Format("2006-01-02")
+
+		if habitLogs[dStr] {
+			total++
+			activeRun++
+		} else {
+			if activeRun > longestStreak {
+				longestStreak = activeRun
+			}
+			activeRun = 0
+		}
+	}
+	if activeRun > longestStreak {
+		longestStreak = activeRun
+	}
+
+	// 2. Current Streak (Monthly Context)
+	// If month is past: check from end of month backwards.
+	// If month is current: check from today backwards.
+	// If month is future: 0.
+
+	if startOfMonth.After(today) {
+		currentStreak = 0
+	} else {
+		checkDate := calcEnd
+		// Grace period logic similar to weekly?
+		// If checkDate is today, we allow it to be unchecked IF yesterday was checked.
+		// If checkDate is end of past month, we strictly expect it to be checked to start a streak from there?
+		// Requirement: "current will be the current streak for the month."
+		// Let's stick to standard streak logic: count backwards from 'calcEnd'.
+
+		// If calcEnd is Today, standard logic applies (today or yesterday).
+		// If calcEnd is EndOfMonth (past), we probably just want "active streak ending on this day".
+
+		streakStartFn := func(start time.Time) time.Time {
+			// If start is unchecked, maybe yesterday?
+			if habitLogs[start.Format("2006-01-02")] {
+				return start
+			}
+			// Only allow lookback if start is Today
+			if start.Equal(today) {
+				prev := start.AddDate(0, 0, -1)
+				// Ensure prev is still in this month
+				if prev.Month() == month && habitLogs[prev.Format("2006-01-02")] {
+					return prev
+				}
+			}
+			return time.Time{} // Invalid
+		}
+
+		startCountingDate := streakStartFn(checkDate)
+		if !startCountingDate.IsZero() {
+			// Count backwards
+			curr := startCountingDate
+			for {
+				if curr.Before(startOfMonth) {
+					break
+				}
+				if habitLogs[curr.Format("2006-01-02")] {
+					currentStreak++
+				} else {
+					break
+				}
+				curr = curr.AddDate(0, 0, -1)
+			}
+		}
+	}
+
+	// 3. Goal & Progress
+	// Goal = (DaysInMonth * WeeklyGoal) / 7
+	// Note: Weekly goal is usually small (e.g. 5).
+	monthlyGoal := 0
+	if weeklyGoal > 0 {
+		monthlyGoal = (daysInMonth * weeklyGoal) / 7
+	}
+
+	progress := 0
+	if monthlyGoal > 0 {
+		progress = (total * 100) / monthlyGoal
 	}
 
 	return HabitStats{

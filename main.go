@@ -6,6 +6,7 @@ import (
 	"habit-tracker/internal/db"
 	"habit-tracker/internal/repository"
 	"habit-tracker/internal/service"
+	"habit-tracker/internal/ui/monthly"
 	"habit-tracker/internal/ui/setup"
 	"habit-tracker/internal/ui/tracker"
 	"log"
@@ -19,12 +20,14 @@ type sessionState int
 
 const (
 	viewTracker sessionState = iota
+	viewMonthly
 	viewSetup
 )
 
 type model struct {
 	state        sessionState
 	trackerModel tracker.Model
+	monthlyModel monthly.Model
 	setupModel   setup.Model
 }
 
@@ -32,12 +35,13 @@ func initialModel(habitRepo *repository.HabitRepository, logRepo *repository.Log
 	return model{
 		state:        viewTracker,
 		trackerModel: tracker.NewModel(habitRepo, logRepo, statsService),
+		monthlyModel: monthly.NewModel(habitRepo, logRepo, statsService),
 		setupModel:   setup.NewModel(habitRepo),
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.trackerModel.Init(), m.setupModel.Init())
+	return tea.Batch(m.trackerModel.Init(), m.monthlyModel.Init(), m.setupModel.Init())
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -51,6 +55,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "tab":
 			if m.state == viewTracker {
+				m.state = viewMonthly
+				cmds = append(cmds, m.monthlyModel.LoadHabits, m.monthlyModel.LoadMonthLogs)
+			} else if m.state == viewMonthly {
 				m.state = viewSetup
 				cmds = append(cmds, m.setupModel.LoadHabits)
 			} else {
@@ -65,6 +72,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewTracker:
 		m.trackerModel, cmd = m.trackerModel.Update(msg)
 		cmds = append(cmds, cmd)
+	case viewMonthly:
+		m.monthlyModel, cmd = m.monthlyModel.Update(msg)
+		cmds = append(cmds, cmd)
 	case viewSetup:
 		m.setupModel, cmd = m.setupModel.Update(msg)
 		cmds = append(cmds, cmd)
@@ -76,6 +86,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	// Simple tab bar
 	trackerTab := "Tracker"
+	monthlyTab := "Monthly"
 	setupTab := "Setup"
 
 	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Border(lipgloss.NormalBorder(), false, false, true, false).BorderForeground(lipgloss.Color("205"))
@@ -83,19 +94,27 @@ func (m model) View() string {
 
 	if m.state == viewTracker {
 		trackerTab = activeStyle.Render(trackerTab)
+		monthlyTab = inactiveStyle.Render(monthlyTab)
+		setupTab = inactiveStyle.Render(setupTab)
+	} else if m.state == viewMonthly {
+		trackerTab = inactiveStyle.Render(trackerTab)
+		monthlyTab = activeStyle.Render(monthlyTab)
 		setupTab = inactiveStyle.Render(setupTab)
 	} else {
 		trackerTab = inactiveStyle.Render(trackerTab)
+		monthlyTab = inactiveStyle.Render(monthlyTab)
 		setupTab = activeStyle.Render(setupTab)
 	}
 
-	header := lipgloss.JoinHorizontal(lipgloss.Top, trackerTab, "  ", setupTab)
+	header := lipgloss.JoinHorizontal(lipgloss.Top, trackerTab, "  ", monthlyTab, "  ", setupTab)
 	header = lipgloss.NewStyle().MarginBottom(1).Render(header)
 
 	content := ""
 	switch m.state {
 	case viewTracker:
 		content = m.trackerModel.View()
+	case viewMonthly:
+		content = m.monthlyModel.View()
 	case viewSetup:
 		content = m.setupModel.View()
 	}
