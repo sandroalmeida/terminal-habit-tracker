@@ -164,8 +164,8 @@ func (m Model) View() string {
 
 	// Stats Headers
 	header += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render("Total") // Reduced width to fit
-	header += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render("Cur")   // Current Streak
-	header += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render("Long")  // Longest Streak
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Current")
+	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Longest")
 	header += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render("Goal")
 	header += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render("Progress")
 
@@ -210,8 +210,8 @@ func (m Model) View() string {
 		stats := m.Stats[habit.ID]
 		// Adjusted column widths to 6 to fit everything
 		row += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.Total))
-		row += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.CurrentStreak))
-		row += lipgloss.NewStyle().Width(6).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.LongestStreak))
+		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.CurrentStreak))
+		row += lipgloss.NewStyle().Width(8).Align(lipgloss.Center).Render(fmt.Sprintf("%d", stats.LongestStreak))
 
 		goalStr := "∞"
 		if habit.GoalTarget > 0 {
