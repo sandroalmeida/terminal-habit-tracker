@@ -34,7 +34,8 @@ func (s *StatsService) GetStats(habitID int, goalTarget int) (HabitStats, error)
 	}
 
 	// 3. Calculate Streak
-	streak := s.CalculateStreak(logs, time.Now())
+	currentStreak := s.CalculateStreak(logs, time.Now())
+	longestStreak := s.CalculateLongestStreak(logs)
 
 	// 4. Calculate Progress
 	progress := 0
@@ -44,9 +45,51 @@ func (s *StatsService) GetStats(habitID int, goalTarget int) (HabitStats, error)
 
 	return HabitStats{
 		Total:         total,
-		CurrentStreak: streak,
+		CurrentStreak: currentStreak,
+		LongestStreak: longestStreak,
 		Progress:      progress,
 	}, nil
+}
+
+// CalculateLongestStreak calculates the longest streak of consecutive days
+func (s *StatsService) CalculateLongestStreak(logs []time.Time) int {
+	if len(logs) == 0 {
+		return 0
+	}
+
+	maxStreak := 0
+	current := 0
+
+	// Logs are ordered by date from repo
+	for i, date := range logs {
+		if i == 0 {
+			current = 1
+			maxStreak = 1
+			continue
+		}
+
+		prevDate := logs[i-1]
+		diff := date.Sub(prevDate).Hours() / 24
+
+		// Check if consecutive (approx 1 day diff)
+		// Allowing some slack for DST or slight time variances if they existed,
+		// but repo uses "2006-01-02", so times should be aligned or we just check day diff.
+		// Since we scan time.Time from DB which usually sets time to 00:00:00 for DATE columns.
+
+		if int(diff+0.5) == 1 {
+			current++
+		} else if int(diff+0.5) > 1 {
+			// Gap found, reset
+			current = 1
+		}
+		// If diff == 0 (duplicate day), do not increment but do not reset.
+		// (Though ToggleLog logic usually prevents duplicates)
+
+		if current > maxStreak {
+			maxStreak = current
+		}
+	}
+	return maxStreak
 }
 
 // CalculateStreak calculates the current streak including connected future days
