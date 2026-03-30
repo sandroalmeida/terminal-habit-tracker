@@ -159,6 +159,11 @@ func main() {
 	logRepo := repository.NewLogRepository(database)
 	statsService := service.NewStatsService(logRepo)
 
+	// Ensure all habits have unique positions for ordering
+	if err := habitRepo.NormalizePositions(); err != nil {
+		log.Fatalf("Error normalizing positions: %v", err)
+	}
+
 	p := tea.NewProgram(initialModel(habitRepo, logRepo, statsService), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
