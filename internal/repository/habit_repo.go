@@ -34,6 +34,62 @@ func (r *HabitRepository) Update(habit *models.Habit) error {
 	return err
 }
 
+func (r *HabitRepository) NormalizePositions() error {
+	rows, err := r.DB.Query(`SELECT id FROM habits ORDER BY position ASC, id ASC`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+	}
+
+	for i, id := range ids {
+		_, err := r.DB.Exec(`UPDATE habits SET position = ? WHERE id = ?`, i+1, id)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *HabitRepository) MaxPosition() (int, error) {
+	var maxPos sql.NullInt64
+	err := r.DB.QueryRow(`SELECT MAX(position) FROM habits`).Scan(&maxPos)
+	if err != nil {
+		return 0, err
+	}
+	if !maxPos.Valid {
+		return 0, nil
+	}
+	return int(maxPos.Int64), nil
+}
+
+func (r *HabitRepository) SwapPositions(id1, pos1, id2, pos2 int) error {
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`UPDATE habits SET position = ? WHERE id = ?`, pos2, id1)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`UPDATE habits SET position = ? WHERE id = ?`, pos1, id2)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (r *HabitRepository) List(includeArchived bool) ([]models.Habit, error) {
 	query := `SELECT id, name, description, position, goal_target, is_archived, created_at FROM habits`
 	if !includeArchived {
