@@ -156,8 +156,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					m.Err = nil // Clear previous error
 
 					if m.Adding {
+						maxPos, _ := m.Repo.MaxPosition()
 						habit := &models.Habit{
 							Name:       m.TempName,
+							Position:   maxPos + 1,
 							GoalTarget: goalVal,
 						}
 						if err := m.Repo.Create(habit); err != nil {
@@ -193,6 +195,28 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "down", "j":
 			if m.Cursor < len(m.Habits)-1 {
 				m.Cursor++
+			}
+		case "shift+up", "K":
+			if m.Cursor > 0 {
+				above := &m.Habits[m.Cursor-1]
+				current := &m.Habits[m.Cursor]
+				if err := m.Repo.SwapPositions(current.ID, current.Position, above.ID, above.Position); err != nil {
+					m.Err = err
+				} else {
+					m.Cursor--
+				}
+				return m, m.LoadHabits
+			}
+		case "shift+down", "J":
+			if m.Cursor < len(m.Habits)-1 {
+				below := &m.Habits[m.Cursor+1]
+				current := &m.Habits[m.Cursor]
+				if err := m.Repo.SwapPositions(current.ID, current.Position, below.ID, below.Position); err != nil {
+					m.Err = err
+				} else {
+					m.Cursor++
+				}
+				return m, m.LoadHabits
 			}
 		case "n":
 			m.Adding = true
@@ -280,7 +304,7 @@ func (m Model) View() string {
 		s += "\n" + m.TextInput.View() + "\n"
 		s += ui.HelpStyle.Render("(Enter to next/save, Esc to cancel)")
 	} else {
-		s += "\n" + ui.HelpStyle.Render("(n: new, e: edit, d: archive, u: un-archive, j/k: navigate)")
+		s += "\n" + ui.HelpStyle.Render("(n: new, e: edit, d: archive, u: un-archive, j/k: navigate, Shift+↑/↓: reorder)")
 	}
 
 	return s
