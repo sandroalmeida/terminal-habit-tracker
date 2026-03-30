@@ -20,7 +20,8 @@ cp config.json "${APP_BUNDLE}/Contents/Resources/"
 
 echo "Creating startup wrapper..."
 cat <<EOF > "${APP_BUNDLE}/Contents/Resources/start.sh"
-#!/bin/bash
+#!/bin/bash -l
+export TERM=xterm-256color
 cd "\$(dirname "\$0")"
 ./${BINARY_NAME}
 EOF
